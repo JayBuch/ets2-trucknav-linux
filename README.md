@@ -13,7 +13,6 @@ It provides:
 
 - Plugin now sends real world position, heading, speed, gear, RPM, fuel amount, fuel consumption, fuel range, fuel warning, game time, rest stop, and navigation distance/time/speed limit.
 - Bridge converts the plugin's JSON into the TruckNav `TelemetryPacket` JSON and forwards it to the TruckNav relay on UDP `54950`.
-- Bridge applies a -90° heading correction so the TruckNav GPS arrow aligns with the truck.
 - TruckNav-Sim relay also binds `0.0.0.0:30001` so the mobile app bridge-check succeeds.
 
 ---
