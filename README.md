@@ -1,6 +1,6 @@
 # ETS2/ATS → TruckNav-Sim on Linux
 
-This repository contains the changes and helpers needed to run the TruckNav-Sim web/mobile dashboard with Euro Truck Simulator 2 / American Truck Simulator on Linux, using the official SCS Telemetry SDK.
+This repository contains the changes and helpers needed to run the TruckNav-Sim web/mobile dashboard with Euro Truck Simulator 2 / American Truck Simulator on Linux, using the official SCS Telemetry SDK. https://github.com/Rares-Muntean/TruckNav-Sim
 
 It provides:
 1. A native SCS Telemetry SDK plugin (`ets2-telemetry-udp`) that sends truck data over UDP.
@@ -72,4 +72,4 @@ Launch ETS2/ATS. The plugin will load automatically and telemetry will appear in
 
 ## License
 
-Original plugin by MrHokss. All modifications are provided as-is for the community.
+Original plugin by MrHokss https://github.com/MrHokss/ets2-telemetry-udp. All modifications are provided as-is for the community.
