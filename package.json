@@ -1,0 +1,8 @@
+{
+  "name": "ets2-trucknav-linux-bridge",
+  "version": "1.0.0",
+  "description": "ETS2/ATS to TruckNav-Sim telemetry bridge for Linux",
+  "dependencies": {
+    "proj4": "^2.20.9"
+  }
+}

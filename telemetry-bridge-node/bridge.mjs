@@ -1,4 +1,6 @@
 import dgram from "dgram";
+import proj4 from "proj4";
+import fs from "fs";
 
 const UDP_SOURCE_PORT = 49001;
 const UDP_TARGET_PORT = 54950;
@@ -7,19 +9,96 @@ const UDP_TARGET_HOST = "127.0.0.1";
 const source = dgram.createSocket("udp4");
 const target = dgram.createSocket("udp4");
 
+const EARTH_RADIUS = 6370997;
+const DEG_LEN = (EARTH_RADIUS * Math.PI) / 180;
+const ETS2_PROJ_DEF = "+proj=lcc +lat_1=37 +lat_2=65 +lat_0=50 +lon_0=15 +R=6370997";
+const ETS2_MAP_OFFSET = [16660, 4150];
+const ETS2_MAP_FACTOR = [-0.000171570875, 0.0001729241463];
+const ets2Converter = proj4(ETS2_PROJ_DEF);
+
+function convertEts2ToGeo(gameX, gameZ) {
+  let x = gameX - ETS2_MAP_OFFSET[0];
+  let y = gameZ - ETS2_MAP_OFFSET[1];
+
+  const ukScale = 0.75;
+  const calaisBound = [-31100, -5500];
+
+  if (gameX < -31100 && gameZ < -5500) {
+    x = (x + calaisBound[0] / 2) * ukScale;
+    y = (y + calaisBound[1] / 2) * ukScale;
+  }
+
+  const projectedX = x * ETS2_MAP_FACTOR[1] * DEG_LEN;
+  const projectedY = y * ETS2_MAP_FACTOR[0] * DEG_LEN;
+
+  const result = ets2Converter.inverse([projectedX, projectedY]);
+  return result;
+}
+
+function toRad(deg) {
+  return (deg * Math.PI) / 180;
+}
+
+function toDeg(rad) {
+  return (rad * 180) / Math.PI;
+}
+
+function getBearing(start, end) {
+  const startLat = toRad(start[1]);
+  const startLng = toRad(start[0]);
+  const endLat = toRad(end[1]);
+  const endLng = toRad(end[0]);
+  const y = Math.sin(endLng - startLng) * Math.cos(endLat);
+  const x =
+    Math.cos(startLat) * Math.sin(endLat) -
+    Math.sin(startLat) * Math.cos(endLat) * Math.cos(endLng - startLng);
+  const brng = toDeg(Math.atan2(y, x));
+  return (brng + 360) % 360;
+}
+
+let lastPosition = null;
+let movementHeading = 0;
+let frame = 0;
+
 function buildTelemetryPacket(data) {
   const speedMs = Number(data.speed ?? 0);
-  const rpm = Number(data.rpm ?? 0);
-  const gear = parseInt(data.gear ?? "0", 10);
+  const speedKph = speedMs * 3.6;
   const gameX = Number(data.x ?? 0);
   const gameZ = Number(data.z ?? 0);
+  const sdkHeading = Number(data.heading ?? 0);
+  const sdkHeadingDeg = ((sdkHeading * 360.0) % 360 + 360) % 360;
 
-  // SDK heading: 0 = north, increasing clockwise, normalized 0..1.
-  // TruckNav helpers.ts computes rawDegrees = -rawGameHeading * 360.
-  // To match that convention we send 1 - heading. Observed app renders
-  // 90 deg to the left; subtract 0.25 to rotate arrow 90 deg clockwise.
-  const headingDeg = Number(data.heading ?? 0) * 360.0;
-  const correctedHeading = (1.0 - (headingDeg / 360.0) + 0.25 + 1.0) % 1.0;
+  const currentCoords = convertEts2ToGeo(gameX, gameZ);
+
+  // Update movement bearing every packet with heavy smoothing.
+  if (lastPosition && speedMs > 0.5) {
+    const dist = Math.sqrt(
+      Math.pow(currentCoords[0] - lastPosition[0], 2) +
+        Math.pow(currentCoords[1] - lastPosition[1], 2)
+    );
+    if (dist > 0.000001) {
+      const newBearing = getBearing(lastPosition, currentCoords);
+      let diff = newBearing - movementHeading;
+      while (diff < -180) diff += 360;
+      while (diff > 180) diff -= 360;
+      movementHeading = (movementHeading + diff * 0.3 + 360) % 360;
+    }
+  }
+  lastPosition = currentCoords;
+
+  // TruckNav helpers.ts: rawDegrees = -rawGameHeading * 360.
+  // We want rawDegrees to match the projected movement bearing so the app's
+  // internal offset stays near 0 and does not drift.
+  const rawGameHeading = (1.0 - movementHeading / 360.0 + 1.0) % 1.0;
+
+  frame++;
+  if (frame % 60 === 0) {
+    // Debug logging disabled now that heading is stable.
+    // fs.appendFileSync(
+    //   "/tmp/bridge_debug.log",
+    //   `sdk=${sdkHeadingDeg.toFixed(1)} move=${movementHeading.toFixed(1)} raw=${rawGameHeading.toFixed(4)} speed=${speedKph.toFixed(1)}\n`
+    // );
+  }
 
   const baseDate = new Date(Date.UTC(2024, 0, 1, 0, 0, 0));
   const gameMinutes = Number(data.gameTime ?? 0);
@@ -59,13 +138,13 @@ function buildTelemetryPacket(data) {
           averageConsumption: fuelConsumption,
           fuelRange: fuelRange,
           fuelWarning: fuelWarning,
-          currentGear: gear,
-          speedKph: speedMs * 3.6,
+          currentGear: parseInt(data.gear ?? "0", 10),
+          speedKph: speedKph,
           speedMph: speedMs * 2.23694,
           cruiseControlSpeedKph: 0,
           cruiseControlSpeedMph: 0,
           cruiseControlActive: false,
-          rpm: rpm,
+          rpm: Number(data.rpm ?? 0),
           odometer: 0,
         },
         lights: {
@@ -85,7 +164,7 @@ function buildTelemetryPacket(data) {
           y: 0,
           z: gameZ,
         },
-        heading: correctedHeading,
+        heading: rawGameHeading,
         parkingBrake: false,
       },
       positioning: {},
@@ -146,14 +225,10 @@ function buildTelemetryPacket(data) {
 
 source.on("message", (msg) => {
   try {
-    const text = msg.toString("utf8");
-    const data = JSON.parse(text);
+    const data = JSON.parse(msg.toString("utf8"));
     const packet = buildTelemetryPacket(data);
-    const payload = JSON.stringify(packet);
-    target.send(payload, UDP_TARGET_PORT, UDP_TARGET_HOST);
-  } catch (e) {
-    // silently drop bad packets
-  }
+    target.send(JSON.stringify(packet), UDP_TARGET_PORT, UDP_TARGET_HOST);
+  } catch (e) {}
 });
 
 source.on("error", (err) => {
