@@ -22,6 +22,8 @@ Linux-native integration for the official [SCS Telemetry SDK](https://modding.sc
 | `telemetry-bridge.mjs` | Patched relay that serves the web UI and WebSocket telemetry (ports `3000`, `30001`, `30002`). |
 | `start.sh` | Single-command launcher that starts both the relay and the bridge. |
 
+This repo is self-contained for the server-side part. You still need the official **TruckNav-Sim mobile app** (or a browser pointed at the relay) to view the dashboard. The original `TruckNav-Sim` repo is linked below for credit and for the app source.
+
 ## Requirements
 
 - Linux host running ETS2 / ATS (Steam build).
