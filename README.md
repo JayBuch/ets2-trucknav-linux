@@ -81,6 +81,33 @@ Start ETS2 / ATS. The plugin loads automatically. Open TruckNav at `http://your-
 
 The TruckNav-Sim dashboard itself is opened in your browser or via the mobile app; the modified relay code is included in this repo so you don't need the original TruckNav-Sim server project to run it.
 
+## Running as a systemd system service
+
+If you want the relay and bridge to start automatically and stay running in the background:
+
+1. Copy the service file into place:
+
+```bash
+sudo cp ets2-trucknav.service /etc/systemd/system/
+sudo systemctl daemon-reload
+```
+
+2. Edit `/etc/systemd/system/ets2-trucknav.service` and make sure `User`, `Group`, `WorkingDirectory`, and `ExecStart` match your install path and Linux user.
+
+3. Enable and start it:
+
+```bash
+sudo systemctl enable ets2-trucknav.service
+sudo systemctl start ets2-trucknav.service
+```
+
+4. Check status and logs:
+
+```bash
+sudo systemctl status ets2-trucknav.service
+sudo journalctl -u ets2-trucknav.service -f
+```
+
 ## Manual start (if you prefer)
 
 ```bash
@@ -89,7 +116,7 @@ cd ets2-trucknav-linux
 node telemetry-bridge.mjs
 
 # Terminal 2: bridge
-cd telemetry-bridge-node
+cd ets2-trucknav-linux/telemetry-bridge-node
 node bridge.mjs
 ```
 
@@ -106,7 +133,7 @@ You should see JSON packets arriving every ~100–250 ms.
 ## Important notes
 
 - The in-game GPS destination is **not** exposed by the SCS SDK as a world coordinate. To make TruckNav route you, set the matching destination waypoint manually in the TruckNav map after setting it in-game.
-- A `+90°` heading correction is applied in `bridge.mjs` so the TruckNav arrow aligns correctly with the Linux plugin's output on this setup. If your arrow points the wrong way, adjust the `correctedHeading` line in `telemetry-bridge-node/bridge.mjs`.
+- `bridge.mjs` computes the truck heading from the projected GPS movement direction that TruckNav itself uses. This keeps TruckNav's internal heading offset near zero and prevents the arrow from drifting.
 - If port `30001` is already in use by another program (e.g. VS Code:), the mobile app bridge-check will fail. Either free that port or bind the relay to a different address.
 
 ## Credits
