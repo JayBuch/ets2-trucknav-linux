@@ -130,12 +130,6 @@ nc -klu 49001
 
 You should see JSON packets arriving every ~100–250 ms.
 
-## Important notes
-
-- The in-game GPS destination is **not** exposed by the SCS SDK as a world coordinate. To make TruckNav route you, set the matching destination waypoint manually in the TruckNav map after setting it in-game.
-- `bridge.mjs` computes the truck heading from the projected GPS movement direction that TruckNav itself uses. This keeps TruckNav's internal heading offset near zero and prevents the arrow from drifting.
-- If port `30001` is already in use by another program (e.g. VS Code:), the mobile app bridge-check will fail. Either free that port or bind the relay to a different address.
-
 ## Credits
 
 - Original plugin: [MrHokss/ets2-telemetry-udp](https://github.com/MrHokss/ets2-telemetry-udp)
