@@ -19,7 +19,7 @@ function buildTelemetryPacket(data) {
   // To match that convention we send 1 - heading. Observed app renders
   // 90 deg to the left; subtract 0.25 to rotate arrow 90 deg clockwise.
   const headingDeg = Number(data.heading ?? 0) * 360.0;
-  const correctedHeading = (1.0 - (headingDeg / 360.0) - 0.25 + 1.0) % 1.0;
+  const correctedHeading = (1.0 - (headingDeg / 360.0) + 0.25 + 1.0) % 1.0;
 
   const baseDate = new Date(Date.UTC(2024, 0, 1, 0, 0, 0));
   const gameMinutes = Number(data.gameTime ?? 0);
