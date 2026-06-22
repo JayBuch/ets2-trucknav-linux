@@ -13,7 +13,6 @@ Linux-native integration for the official [SCS Telemetry SDK](https://modding.sc
 
 ## What you get in this repo
 
-All files needed to run the integration are included. You do **not** need to download the original `TruckNav-Sim` or `ets2-telemetry-udp` repositories separately — they are linked below only for credit.
 
 | File | Purpose |
 |------|---------|
@@ -40,7 +39,6 @@ git clone https://github.com/JayBuch/ets2-trucknav-linux.git
 cd ets2-trucknav-linux
 ```
 
-You do **not** need to clone the original `TruckNav-Sim` or `ets2-telemetry-udp` repositories; all modified files and SDK headers are included here.
 
 ### 2. Build the plugin
 
