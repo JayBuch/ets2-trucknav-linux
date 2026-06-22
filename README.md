@@ -40,7 +40,6 @@ git clone https://github.com/JayBuch/ets2-trucknav-linux.git
 cd ets2-trucknav-linux
 ```
 
-You do **not** need to clone the original `TruckNav-Sim` or `ets2-telemetry-udp` repositories; all modified files and SDK headers are included here.
 
 ### 2. Build the plugin
 
