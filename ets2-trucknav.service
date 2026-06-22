@@ -4,13 +4,13 @@ After=network.target
 
 [Service]
 Type=simple
-User=jason
-Group=jason
-WorkingDirectory=/home/jason/ets2-trucknav-linux
-ExecStart=/home/jason/ets2-trucknav-linux/start.sh
+User=<USER>
+Group=<USER>
+WorkingDirectory=/home/<USER>/ets2-trucknav-linux
+ExecStart=/home/<USER>/ets2-trucknav-linux/start.sh
 Restart=on-failure
 RestartSec=5
-Environment="HOME=/home/jason"
+Environment="HOME=/home/<USER>"
 
 [Install]
 WantedBy=multi-user.target
