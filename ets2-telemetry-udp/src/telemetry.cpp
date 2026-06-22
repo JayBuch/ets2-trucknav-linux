@@ -117,6 +117,23 @@ struct telemetry_state_t
 	// What the UI shows (can differ from engine_gear for some setups)
 	int   displayed_gear;
 
+	// Job info
+	char  job_city_destination_id[64];
+	char  job_city_destination[64];
+	char  job_company_destination_id[64];
+	char  job_company_destination[64];
+	char  job_city_source_id[64];
+	char  job_city_source[64];
+	char  job_company_source_id[64];
+	char  job_company_source[64];
+	char  job_market[32];
+	bool  job_cargo_loaded;
+	bool  job_special;
+	int   job_income;
+
+	float cargo_mass;
+	char  cargo_name[64];
+
 } telemetry;
 
 /**
@@ -202,7 +219,7 @@ static void udp_send_json()
 	float speed = g_udp_speed;
 	if (speed == 0.0f) speed = 0.0f;
 
-	char buf[1024];
+	char buf[4096];
 	const int n = snprintf(
 		buf,
 		sizeof(buf),
@@ -211,7 +228,11 @@ static void udp_send_json()
 						   "\"cruise\":%.3f,\"x\":%.3f,\"y\":%.3f,\"z\":%.3f,\"heading\":%.6f,"
 						   "\"fuelAmount\":%.2f,\"fuelCapacity\":%.2f,\"fuelConsumption\":%.3f,\"fuelRange\":%.2f,\"fuelWarning\":%s,"
 						   "\"navDistance\":%.2f,\"navTime\":%u,\"navSpeedLimit\":%.3f,"
-						   "\"gameTime\":%u,\"restStop\":%d}\n",
+						   "\"gameTime\":%u,\"restStop\":%d,"
+						   "\"jobCityDestinationId\":\"%s\",\"jobCityDestination\":\"%s\",\"jobCompanyDestinationId\":\"%s\",\"jobCompanyDestination\":\"%s\","
+						   "\"jobCitySourceId\":\"%s\",\"jobCitySource\":\"%s\",\"jobCompanySourceId\":\"%s\",\"jobCompanySource\":\"%s\","
+						   "\"jobMarket\":\"%s\",\"jobCargoLoaded\":%s,\"jobSpecial\":%s,\"jobIncome\":%d,"
+						   "\"cargoMass\":%.2f,\"cargoName\":\"%s\"}\n",
 						speed,
 						g_udp_rpm,
 						telemetry.gear,
@@ -234,7 +255,21 @@ static void udp_send_json()
 						telemetry.nav_time,
 						telemetry.nav_speed_limit,
 						telemetry.game_time_available ? telemetry.game_time : 0u,
-						telemetry.rest_stop_available ? telemetry.rest_stop : 0
+						telemetry.rest_stop_available ? telemetry.rest_stop : 0,
+						telemetry.job_city_destination_id,
+						telemetry.job_city_destination,
+						telemetry.job_company_destination_id,
+						telemetry.job_company_destination,
+						telemetry.job_city_source_id,
+						telemetry.job_city_source,
+						telemetry.job_company_source_id,
+						telemetry.job_company_source,
+						telemetry.job_market,
+						telemetry.job_cargo_loaded ? "true" : "false",
+						telemetry.job_special ? "true" : "false",
+						telemetry.job_income,
+						telemetry.cargo_mass,
+						telemetry.cargo_name
 	);
 
 	if (n > 0) {
@@ -440,6 +475,62 @@ SCSAPI_VOID telemetry_configuration(const scs_event_t event, const void *const e
 	log_line("Configuration: %s", info->id);
 	telemetry_print_attributes(info->attributes);
 	print_header = true;
+
+	if (strcmp(info->id, SCS_TELEMETRY_CONFIG_job) != 0) {
+		return;
+	}
+
+	// Reset job fields
+	memset(telemetry.job_city_destination_id, 0, sizeof(telemetry.job_city_destination_id));
+	memset(telemetry.job_city_destination, 0, sizeof(telemetry.job_city_destination));
+	memset(telemetry.job_company_destination_id, 0, sizeof(telemetry.job_company_destination_id));
+	memset(telemetry.job_company_destination, 0, sizeof(telemetry.job_company_destination));
+	memset(telemetry.job_city_source_id, 0, sizeof(telemetry.job_city_source_id));
+	memset(telemetry.job_city_source, 0, sizeof(telemetry.job_city_source));
+	memset(telemetry.job_company_source_id, 0, sizeof(telemetry.job_company_source_id));
+	memset(telemetry.job_company_source, 0, sizeof(telemetry.job_company_source));
+	memset(telemetry.job_market, 0, sizeof(telemetry.job_market));
+	memset(telemetry.cargo_name, 0, sizeof(telemetry.cargo_name));
+	telemetry.job_cargo_loaded = false;
+	telemetry.job_special = false;
+	telemetry.job_income = 0;
+	telemetry.cargo_mass = 0.0f;
+
+	for (const scs_named_value_t *current = info->attributes; current->name; ++current) {
+		if (strcmp(current->name, SCS_TELEMETRY_CONFIG_ATTRIBUTE_destination_city_id) == 0 && current->value.type == SCS_VALUE_TYPE_string) {
+			snprintf(telemetry.job_city_destination_id, sizeof(telemetry.job_city_destination_id), "%s", current->value.value_string.value);
+		} else if (strcmp(current->name, SCS_TELEMETRY_CONFIG_ATTRIBUTE_destination_city) == 0 && current->value.type == SCS_VALUE_TYPE_string) {
+			snprintf(telemetry.job_city_destination, sizeof(telemetry.job_city_destination), "%s", current->value.value_string.value);
+		} else if (strcmp(current->name, SCS_TELEMETRY_CONFIG_ATTRIBUTE_destination_company_id) == 0 && current->value.type == SCS_VALUE_TYPE_string) {
+			snprintf(telemetry.job_company_destination_id, sizeof(telemetry.job_company_destination_id), "%s", current->value.value_string.value);
+		} else if (strcmp(current->name, SCS_TELEMETRY_CONFIG_ATTRIBUTE_destination_company) == 0 && current->value.type == SCS_VALUE_TYPE_string) {
+			snprintf(telemetry.job_company_destination, sizeof(telemetry.job_company_destination), "%s", current->value.value_string.value);
+		} else if (strcmp(current->name, SCS_TELEMETRY_CONFIG_ATTRIBUTE_source_city_id) == 0 && current->value.type == SCS_VALUE_TYPE_string) {
+			snprintf(telemetry.job_city_source_id, sizeof(telemetry.job_city_source_id), "%s", current->value.value_string.value);
+		} else if (strcmp(current->name, SCS_TELEMETRY_CONFIG_ATTRIBUTE_source_city) == 0 && current->value.type == SCS_VALUE_TYPE_string) {
+			snprintf(telemetry.job_city_source, sizeof(telemetry.job_city_source), "%s", current->value.value_string.value);
+		} else if (strcmp(current->name, SCS_TELEMETRY_CONFIG_ATTRIBUTE_source_company_id) == 0 && current->value.type == SCS_VALUE_TYPE_string) {
+			snprintf(telemetry.job_company_source_id, sizeof(telemetry.job_company_source_id), "%s", current->value.value_string.value);
+		} else if (strcmp(current->name, SCS_TELEMETRY_CONFIG_ATTRIBUTE_source_company) == 0 && current->value.type == SCS_VALUE_TYPE_string) {
+			snprintf(telemetry.job_company_source, sizeof(telemetry.job_company_source), "%s", current->value.value_string.value);
+		} else if (strcmp(current->name, SCS_TELEMETRY_CONFIG_ATTRIBUTE_job_market) == 0 && current->value.type == SCS_VALUE_TYPE_string) {
+			snprintf(telemetry.job_market, sizeof(telemetry.job_market), "%s", current->value.value_string.value);
+		} else if (strcmp(current->name, SCS_TELEMETRY_CONFIG_ATTRIBUTE_cargo) == 0 && current->value.type == SCS_VALUE_TYPE_string) {
+			snprintf(telemetry.cargo_name, sizeof(telemetry.cargo_name), "%s", current->value.value_string.value);
+		} else if (strcmp(current->name, SCS_TELEMETRY_CONFIG_ATTRIBUTE_is_cargo_loaded) == 0 && current->value.type == SCS_VALUE_TYPE_bool) {
+			telemetry.job_cargo_loaded = current->value.value_bool.value;
+		} else if (strcmp(current->name, SCS_TELEMETRY_CONFIG_ATTRIBUTE_special_job) == 0 && current->value.type == SCS_VALUE_TYPE_bool) {
+			telemetry.job_special = current->value.value_bool.value;
+		} else if (strcmp(current->name, SCS_TELEMETRY_CONFIG_ATTRIBUTE_income) == 0 && current->value.type == SCS_VALUE_TYPE_s32) {
+			telemetry.job_income = current->value.value_s32.value;
+		} else if (strcmp(current->name, SCS_TELEMETRY_CONFIG_ATTRIBUTE_cargo_mass) == 0 && current->value.type == SCS_VALUE_TYPE_float) {
+			telemetry.cargo_mass = current->value.value_float.value;
+		}
+	}
+
+	#if defined(__linux__) || defined(_WIN32)
+	udp_send_json();
+	#endif
 }
 
 SCSAPI_VOID telemetry_gameplay_event(const scs_event_t event, const void *const event_info, const scs_context_t UNUSED(context))
