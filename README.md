@@ -15,12 +15,15 @@ Linux-native integration for the official [SCS Telemetry SDK](https://modding.sc
 
 | File | Purpose |
 |------|---------|
-| `ets2-telemetry-udp/src/telemetry.cpp` | Modified SCS SDK plugin that sends position, heading, fuel, time, rest, and navigation data over UDP. |
+| `ets2-telemetry-udp/src/telemetry.cpp` | Modified SCS SDK plugin that sends position, heading, fuel, time, rest, and navigation data over UDP to `127.0.0.1:49001`. |
 | `ets2-telemetry-udp/include/` | SCS SDK headers needed to build the plugin. |
 | `ets2-telemetry-udp/CMakeLists.txt` | CMake build config for the plugin. |
-| `telemetry-bridge-node/bridge.mjs` | UDP bridge that converts plugin output into the TruckNav packet format. |
+| `telemetry-bridge-node/bridge.mjs` | UDP bridge that converts plugin output into the TruckNav packet format and forwards it to `127.0.0.1:54950`. |
 | `telemetry-bridge.mjs` | Patched relay that serves the web UI and WebSocket telemetry (ports `3000`, `30001`, `30002`). |
+| `ats-telemetry-launcher.sh` | Steam launch wrapper for **American Truck Simulator**. |
+| `ets2-telemetry-launcher.sh` | Steam launch wrapper for **Euro Truck Simulator 2**. |
 | `start.sh` | Single-command launcher that starts both the relay and the bridge. |
+| `ets2-trucknav.service` | systemd service template to run the relay/bridge in the background. |
 
 This repo is self-contained for the server-side part. You still need the official **TruckNav-Sim mobile app** (or a browser pointed at the relay) to view the dashboard. The original `TruckNav-Sim` repo is linked below for credit and for the app source.
 
@@ -52,9 +55,11 @@ cmake ..
 cmake --build . -j
 cp libets2_telemetry_udp.so \
   "$HOME/.steam/steam/steamapps/common/Euro Truck Simulator 2/bin/linux_x64/plugins/"
+cp libets2_telemetry_udp.so \
+  "$HOME/.steam/steam/steamapps/common/American Truck Simulator/bin/linux_x64/plugins/"
 ```
 
-If your Steam library lives somewhere else, adjust the destination path.
+If your Steam library lives somewhere else, adjust the destination paths. The launcher scripts use `$HOME/Games/Steam/steamapps/common/`, so edit them if your install path differs.
 
 ### 3. Start the relay and bridge
 
@@ -65,17 +70,31 @@ cd ~/ets2-trucknav-linux
 
 This starts:
 - TruckNav relay on `0.0.0.0:3000` (web UI), `0.0.0.0:30001` (app check), `0.0.0.0:30002` (telemetry).
-- ETS2 bridge listening on UDP `49001` and forwarding to the relay.
+- ETS2 bridge listening on UDP `49001` and forwarding to the relay on UDP `54950`.
 
 Press `Ctrl+C` to stop both.
 
-### 4. Launch the game
+### 4. Launch the game with the Steam telemetry wrapper
 
-Start ETS2 / ATS. The plugin loads automatically. Open TruckNav at `http://your-host:3000` or connect the mobile app to `your-host`.
+Right-click the game in Steam → **Properties…** → **General** → **Launch Options**, then paste the matching wrapper:
+
+**Euro Truck Simulator 2:**
+```bash
+bash "$HOME/ets2-telemetry-launcher.sh"
+```
+
+**American Truck Simulator:**
+```bash
+bash "$HOME/ats-telemetry-launcher.sh"
+```
+
+When you start the game, the wrapper runs the game binary from your Steam library path. The plugin sends telemetry to `127.0.0.1:49001`; the bridge forwards it to the relay on UDP `54950`, and the relay broadcasts it over WebSocket `30002` to the TruckNav browser / mobile app.
+
+Open TruckNav at `http://your-host:3000` or connect the mobile app to `your-host`.
 
 ## How it works
 
-1. The native SCS SDK plugin streams truck data as JSON over UDP `127.0.0.1:49001`.
+1. The SCS SDK plugin streams truck data as JSON over UDP `127.0.0.1:49001`.
 2. `telemetry-bridge-node/bridge.mjs` converts that JSON into a TruckNav `TelemetryPacket` and forwards it to `127.0.0.1:54950`.
 3. `telemetry-bridge.mjs` receives the packet on UDP `54950` and broadcasts it over WebSocket `30002` to the TruckNav browser / mobile app.
 
@@ -118,6 +137,10 @@ node telemetry-bridge.mjs
 # Terminal 2: bridge
 cd ets2-trucknav-linux/telemetry-bridge-node
 node bridge.mjs
+
+# Terminal 3: Nuxt dev server
+cd /path/to/TruckNav-Sim
+npx nuxi dev --host 0.0.0.0
 ```
 
 ## Verification
@@ -128,7 +151,7 @@ Check that the plugin is sending data:
 nc -klu 49001
 ```
 
-You should see JSON packets arriving every ~100–250 ms.
+You should see JSON packets arriving every ~100–250 ms when the game is running.
 
 ## Credits
 
