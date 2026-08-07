@@ -19,13 +19,17 @@ Linux-native integration for the official [SCS Telemetry SDK](https://modding.sc
 | `ets2-telemetry-udp/include/` | SCS SDK headers needed to build the plugin. |
 | `ets2-telemetry-udp/CMakeLists.txt` | CMake build config for the plugin. |
 | `telemetry-bridge-node/bridge.mjs` | UDP bridge that converts plugin output into the TruckNav packet format and forwards it to `127.0.0.1:54950`. |
-| `telemetry-bridge.mjs` | Patched relay that serves the web UI and WebSocket telemetry (ports `3000`, `30001`, `30002`). |
+| `telemetry-bridge.mjs` | UDP/WebSocket relay. Receives telemetry on UDP `54950` and broadcasts it over WebSocket `30001` (app check) and `30002` (telemetry). **It does not serve the web UI on port `3000`;** use the TruckNav-Sim Nuxt dev server (or the official mobile app) for that. |
 | `ats-telemetry-launcher.sh` | Steam launch wrapper for **American Truck Simulator**. |
 | `ets2-telemetry-launcher.sh` | Steam launch wrapper for **Euro Truck Simulator 2**. |
 | `start.sh` | Single-command launcher that starts both the relay and the bridge. |
 | `ets2-trucknav.service` | systemd service template to run the relay/bridge in the background. |
 
-This repo is self-contained for the server-side part. You still need the official **TruckNav-Sim mobile app** (or a browser pointed at the relay) to view the dashboard. The original `TruckNav-Sim` repo is linked below for credit and for the app source.
+This repo contains the Linux server-side pieces you need to feed telemetry into TruckNav-Sim. You still need one of the following to view the dashboard:
+- The official **TruckNav-Sim mobile app** (Android/iOS) from the upstream project.
+- A browser pointed at the TruckNav-Sim Nuxt dev server (see the upstream repo) if you want the full web UI on port `3000`.
+
+The original `TruckNav-Sim` repo is linked below for credit, for the app source, and for the Nuxt web dashboard.
 
 ## Requirements
 
@@ -35,15 +39,24 @@ This repo is self-contained for the server-side part. You still need the officia
 
 ## Quick start
 
-### 1. Clone this repo
+### 1. Clone this repo (and the upstream dashboard if you want the web UI)
 
 ```bash
 cd ~/
-git clone https://github.com/JayBuch/ets2-trucknav-linux.git
-cd ets2-trucknav-linux
+git clone https://github.com/JayBuch/ets2-ats-trucknav-linux.git
+cd ets2-ats-trucknav-linux
 ```
 
-You do **not** need to clone the original `TruckNav-Sim` or `ets2-telemetry-udp` repositories; all modified files and SDK headers are included here.
+You do **not** need to clone the original `ets2-telemetry-udp` repository — the modified plugin and SDK headers are included here.
+
+If you want to use a browser for the dashboard (rather than the official mobile app), you also need to clone the upstream `TruckNav-Sim` repo:
+
+```bash
+cd ~/
+git clone https://github.com/Rares-Muntean/TruckNav-Sim.git
+```
+
+The `telemetry-bridge.mjs` in this repo handles WebSocket telemetry. The TruckNav-Sim repo provides the Nuxt dev server that serves the web UI on port `3000`.
 
 ### 2. Build the plugin
 
@@ -64,15 +77,25 @@ If your Steam library lives somewhere else, adjust the destination paths. The la
 ### 3. Start the relay and bridge
 
 ```bash
-cd ~/ets2-trucknav-linux
+cd ~/ets2-ats-trucknav-linux
 ./start.sh
 ```
 
 This starts:
-- TruckNav relay on `0.0.0.0:3000` (web UI), `0.0.0.0:30001` (app check), `0.0.0.0:30002` (telemetry).
-- ETS2 bridge listening on UDP `49001` and forwarding to the relay on UDP `54950`.
+- The telemetry bridge-node, listening on UDP `49001` and forwarding to the relay on UDP `54950`.
+- The telemetry relay, listening on UDP `54950` and broadcasting WebSocket telemetry on `0.0.0.0:30001` (app check) and `0.0.0.0:30002` (telemetry).
 
 Press `Ctrl+C` to stop both.
+
+If you also want the browser web UI on port `3000`, start the TruckNav-Sim Nuxt dev server in another terminal:
+
+```bash
+cd ~/TruckNav-Sim
+npm install
+npx nuxi dev --host 0.0.0.0
+```
+
+> **Note:** `start.sh` will auto-build the plugin if it's missing and auto-install it into the Steam plugin directories if they're present. You only need to run the build step manually if your Steam path is different.
 
 ### 4. Launch the game with the Steam telemetry wrapper
 
@@ -90,7 +113,8 @@ bash "$HOME/ats-telemetry-launcher.sh"
 
 When you start the game, the wrapper runs the game binary from your Steam library path. The plugin sends telemetry to `127.0.0.1:49001`; the bridge forwards it to the relay on UDP `54950`, and the relay broadcasts it over WebSocket `30002` to the TruckNav browser / mobile app.
 
-Open TruckNav at `http://your-host:3000` or connect the mobile app to `your-host`.
+- Connect the **mobile app** to your host's IP address.
+- Open the **browser dashboard** at `http://your-host:3000` (only if you started the TruckNav-Sim Nuxt dev server).
 
 ## How it works
 
@@ -98,7 +122,7 @@ Open TruckNav at `http://your-host:3000` or connect the mobile app to `your-host
 2. `telemetry-bridge-node/bridge.mjs` converts that JSON into a TruckNav `TelemetryPacket` and forwards it to `127.0.0.1:54950`.
 3. `telemetry-bridge.mjs` receives the packet on UDP `54950` and broadcasts it over WebSocket `30002` to the TruckNav browser / mobile app.
 
-The TruckNav-Sim dashboard itself is opened in your browser or via the mobile app; the modified relay code is included in this repo so you don't need the original TruckNav-Sim server project to run it.
+The TruckNav-Sim dashboard itself is opened in your browser or via the mobile app. This repo's relay handles WebSocket telemetry; the TruckNav-Sim repo provides the browser web UI on port `3000`.
 
 ## Running as a systemd system service
 
@@ -130,16 +154,17 @@ sudo journalctl -u ets2-trucknav.service -f
 ## Manual start (if you prefer)
 
 ```bash
-# Terminal 1: relay
-cd ets2-trucknav-linux
+# Terminal 1: telemetry relay (WebSocket telemetry only; no web UI on port 3000)
+cd ~/ets2-ats-trucknav-linux
 node telemetry-bridge.mjs
 
 # Terminal 2: bridge
-cd ets2-trucknav-linux/telemetry-bridge-node
+cd ~/ets2-ats-trucknav-linux/telemetry-bridge-node
 node bridge.mjs
 
-# Terminal 3: Nuxt dev server
-cd /path/to/TruckNav-Sim
+# Terminal 3 (optional): TruckNav-Sim Nuxt dev server for the browser web UI on port 3000
+cd ~/TruckNav-Sim
+npm install
 npx nuxi dev --host 0.0.0.0
 ```
 

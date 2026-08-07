@@ -6,8 +6,8 @@ After=network.target
 Type=simple
 User=<USER>
 Group=<USER>
-WorkingDirectory=/home/<USER>/ets2-trucknav-linux
-ExecStart=/home/<USER>/ets2-trucknav-linux/start.sh
+WorkingDirectory=/home/<USER>/ets2-ats-trucknav-linux
+ExecStart=/home/<USER>/ets2-ats-trucknav-linux/start.sh
 Restart=on-failure
 RestartSec=5
 Environment="HOME=/home/<USER>"
